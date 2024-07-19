@@ -1,21 +1,25 @@
 package db
 
 import (
-	"database/sql"
-	"log"
+	"context"
+	"fmt"
+
+	"github.com/go-redis/redis/v8"
 )
 
 // ConnectDB establishes a connection to the database.
-func ConnectDB(connStr string) (*sql.DB, error) {
-	db, err := sql.Open("postgres", connStr)
+func Connect() *redis.Client {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+	defer rdb.Close()
+	ctx := context.Background()
+	pong, err := rdb.Ping(ctx).Result()
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-
-	if err := db.Ping(); err != nil {
-		return nil, err
-	}
-
-	log.Println("Successfully connected to the database")
-	return db, nil
+	fmt.Println(pong)
+	return rdb 
 }
