@@ -1,30 +1,27 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
+	"github.com/low4ey/matchmaking/package/db"
+	"github.com/low4ey/matchmaking/package/models"
 	"github.com/low4ey/matchmaking/package/utils"
 )
 
-// PlayerRequest represents the request body containing player_id.
-type PlayerRequest struct {
-	PlayerID string `json:"player_id"`
-}
+var redisClient *redis.Client
 
-type Match struct {
-	MatchID     string
-	MaxPlayers  int
-	PlayerCount int
-	PlayerAID   []string
-	IsAvailable bool
+func init() {
+	redisClient = db.Connect()
 }
 
 // NewMatch creates a new Match instance with default values.
-func NewMatch(matchID string) *Match {
-	return &Match{
+func NewMatch(matchID string) *models.Match {
+	return &models.Match{
 		MatchID:     matchID,
 		MaxPlayers:  2, // Default value for max_players
 		PlayerAID:   []string{},
@@ -32,38 +29,55 @@ func NewMatch(matchID string) *Match {
 	}
 }
 
-var availableMatch []Match
-
-// UserHandler handles requests to the /users endpoint.
-func Hello(w http.ResponseWriter, r *http.Request) {
-	data := map[string]string{"hello": "world"}
-	utils.SendJSONResponse(w, http.StatusOK, "User retrieved successfully", data)
-}
-
 func SearchMatch(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
 	// Decode the request body
-	var req PlayerRequest
+	var req models.PlayerRequest
+	PlayerId := req.PlayerID
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	playerID := req.PlayerID
-	fmt.Println(playerID, "searching for match")
-	fmt.Println(availableMatch)
-	for index := range availableMatch {
-		if availableMatch[index].IsAvailable {
-			currMatch := &availableMatch[index]
-			currMatch.PlayerCount++
-			currMatch.IsAvailable = currMatch.PlayerCount < currMatch.MaxPlayers
-			currMatch.PlayerAID = append(currMatch.PlayerAID, playerID)
-			utils.SendJSONResponse(w, http.StatusOK, "Match found", currMatch)
+	for {
+		currMatch, err := redisClient.ZRevRangeByScoreWithScores(ctx, "Match:1v1", &redis.ZRangeBy{
+			Min:    "-inf",
+			Max:    "inf",
+			Offset: 0,
+			Count:  1,
+		}).Result()
+		if err != nil {
+			utils.SendErrorResponse(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		if len(currMatch) == 0 {
+			break
+		} else {
+			var matchData models.Match
+			for _, match := range currMatch {
+				json.Unmarshal([]byte(match.Member.(string)), &matchData)
+				redisClient.ZRem(ctx, "Match:1v1", match.Member)
+				if matchData.PlayerCount == matchData.MaxPlayers {
+					matchData.IsAvailable = false
+				} else if matchData.IsAvailable {
+					matchData.PlayerCount++
+					matchData.PlayerAID = append(matchData.PlayerAID, PlayerId)
+					matchDataBytes, _ := json.Marshal(matchData)
+					redisClient.ZAdd(ctx, "Match:1v1", &redis.Z{Score: float64(matchData.PlayerCount), Member: string(matchDataBytes)})
+					utils.SendJSONResponse(w, http.StatusOK, "Match Found", matchData)
+					return
+				}
+			}
+			break
+		}
 	}
+
+	playerID := req.PlayerID
+	fmt.Println(playerID, "searching for match")
 	newMatchId := uuid.New().String()
 	newMatch := NewMatch(newMatchId)
 	newMatch.PlayerCount++
 	newMatch.PlayerAID = append(newMatch.PlayerAID, playerID)
-	availableMatch = append(availableMatch, *newMatch)
-	utils.SendJSONResponse(w, http.StatusOK, "Match created", newMatch)
+	matchData, _ := json.Marshal(newMatch)
+	redisClient.ZAdd(ctx, "Match:1v1", &redis.Z{Score: float64(newMatch.PlayerCount), Member: string(matchData)})
+	utils.SendJSONResponse(w, http.StatusOK, "Match found or created", newMatch)
 }
