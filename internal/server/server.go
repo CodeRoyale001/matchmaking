@@ -5,22 +5,22 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/low4ey/matchmaking/internal/config"
-	"github.com/low4ey/matchmaking/internal/handler"
 )
 
 // Server represents the HTTP server.
 type Server struct {
 	config *config.Config
-	mux    *http.ServeMux
+	router *mux.Router
 }
 
 // New creates a new Server instance.
 func New(cfg *config.Config) *Server {
-	mux := http.NewServeMux()
+	router := mux.NewRouter()
 	srv := &Server{
 		config: cfg,
-		mux:    mux,
+		router: router,
 	}
 	srv.routes()
 	return srv
@@ -30,14 +30,7 @@ func New(cfg *config.Config) *Server {
 func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%s", s.config.Port)
 	log.Printf("Starting server on %s", addr)
-	return http.ListenAndServe(addr, s.mux)
-}
-
-// routes registers the HTTP routes.
-func (s *Server) routes() {
-	s.mux.Handle("/", s.corsMiddleware(http.HandlerFunc(handler.Hello)))
-	s.mux.Handle("/search", s.corsMiddleware(http.HandlerFunc(handler.SearchMatch)))
-	// s.mux.Handle("/products", s.corsMiddleware(http.HandlerFunc(handlers.ProductHandler)))
+	return http.ListenAndServe(addr, s.router)
 }
 
 // corsMiddleware is a middleware function for handling CORS.

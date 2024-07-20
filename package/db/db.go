@@ -14,12 +14,12 @@ func Connect() *redis.Client {
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
-	defer rdb.Close()
+
 	ctx := context.Background()
 	pong, err := rdb.Ping(ctx).Result()
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println(pong)
-	return rdb 
+	return rdb
 }
