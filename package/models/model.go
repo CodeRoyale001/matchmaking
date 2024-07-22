@@ -1,5 +1,7 @@
 package models
 
+import "github.com/gorilla/websocket"
+
 // User represents a user in the system.
 type User struct {
 	ID       int    `json:"id"`
@@ -19,4 +21,19 @@ type Match struct {
 // Player Request represents the request body containing player_id
 type PlayerRequest struct {
 	PlayerID string `json:"player_id"`
+}
+
+// Room represents a room in the system.
+type room struct{}
+
+// Player represents a player in the system.
+type Player struct {
+	socket  *websocket.Conn
+	receive chan []byte
+	room    *room
+}
+type WsRequest struct {
+	Action  string `json:"action"`
+	Match   string `json:"match"`
+	Content string `json:"content"`
 }
