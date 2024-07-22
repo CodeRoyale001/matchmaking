@@ -2,7 +2,10 @@ package utils
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
+
+	"github.com/gorilla/websocket"
 )
 
 // ErrorResponse represents the structure of an error response.
@@ -45,4 +48,25 @@ func SendErrorResponse(w http.ResponseWriter, status int, message string) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// Read WebSocket messages
+func ReadMessage(conn *websocket.Conn) (message []byte, err error) {
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		log.Println("Error reading message:", err)
+		return msg, err
+	}
+	log.Printf("Received message: %s", msg)
+	return msg, err
+}
+
+// Write WebSocket messages
+func WriteMessage(conn *websocket.Conn, msg []byte) {
+	err := conn.WriteMessage(websocket.TextMessage, msg)
+	if err != nil {
+		log.Println("Error writing message:", err)
+		return
+	}
+	log.Printf("Sent message: %s", msg)
 }

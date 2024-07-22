@@ -32,10 +32,9 @@ func NewMatch(matchID string) *models.Match {
 func SearchMatch(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	// Decode the request body
-	var req models.PlayerRequest
-	PlayerId := req.PlayerID
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	playerID := r.URL.Query().Get("playerID")
+	if playerID == "" {
+		http.Error(w, "Missing playerID parameter", http.StatusBadRequest)
 		return
 	}
 	for {
@@ -60,7 +59,7 @@ func SearchMatch(w http.ResponseWriter, r *http.Request) {
 					matchData.IsAvailable = false
 				} else if matchData.IsAvailable {
 					matchData.PlayerCount++
-					matchData.PlayerAID = append(matchData.PlayerAID, PlayerId)
+					matchData.PlayerAID = append(matchData.PlayerAID, playerID)
 					matchDataBytes, _ := json.Marshal(matchData)
 					redisClient.ZAdd(ctx, "Match:1v1", &redis.Z{Score: float64(matchData.PlayerCount), Member: string(matchDataBytes)})
 					utils.SendJSONResponse(w, http.StatusOK, "Match Found", matchData)
@@ -70,8 +69,6 @@ func SearchMatch(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-
-	playerID := req.PlayerID
 	fmt.Println(playerID, "searching for match")
 	newMatchId := uuid.New().String()
 	newMatch := NewMatch(newMatchId)
