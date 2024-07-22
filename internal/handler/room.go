@@ -45,11 +45,11 @@ func (h *Hub) Run() {
 					}
 				}
 			}
-		case message := <-h.broadcast:
-			if room, ok := h.matchRooms[message.matchId]; ok {
+		case broadcastDeatil := <-h.broadcast:
+			if room, ok := h.matchRooms[broadcastDeatil.matchId]; ok {
 				for client := range room {
 					select {
-					case client.send <- message.message:
+					case client.send <- broadcastDeatil.message:
 					default:
 						close(client.send)
 						delete(h.clients, client)
